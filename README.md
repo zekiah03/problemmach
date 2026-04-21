@@ -97,11 +97,13 @@ Vercel を使う場合は `vercel.json` で同等の設定が可能。
 ## テスト
 
 ```bash
-npm test          # vitest run
-npm run test:watch
+npm test                                  # 30 件のユニットテスト
+npm run test:watch                        # ウォッチモード
+BASE=http://localhost:3000 bash scripts/smoke.sh  # スモークテスト
 ```
 
-現在 30 件のユニットテスト (parsers / crypto / pickTemplates)。
+スモークテストは公開ページ・cron エンドポイントの基本動作を確認します。
+ポートが 3000 と異なる場合は `BASE` 環境変数で指定してください。
 
 ## 今後の Phase
 
