@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -7,9 +8,10 @@ type Props = {
   matchId: string;
   alreadyAccepted: boolean;
   status: string;
+  chatRoomId?: string | null;
 };
 
-export function MatchActions({ matchId, alreadyAccepted, status }: Props) {
+export function MatchActions({ matchId, alreadyAccepted, status, chatRoomId }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
@@ -40,8 +42,16 @@ export function MatchActions({ matchId, alreadyAccepted, status }: Props) {
 
   if (status === "MUTUAL") {
     return (
-      <div className="rounded-md bg-accent/10 p-4 text-sm text-accent">
-        相互承認済みです。チャット機能は Phase 3 で提供予定。
+      <div className="space-y-3 rounded-md bg-accent/10 p-4 text-sm">
+        <p className="text-accent">相互承認済みです。対話を始められます。</p>
+        {chatRoomId && (
+          <Link
+            href={`/chat/${chatRoomId}`}
+            className="inline-block rounded-md bg-accent px-4 py-2 text-sm font-medium text-white"
+          >
+            対話を始める
+          </Link>
+        )}
       </div>
     );
   }

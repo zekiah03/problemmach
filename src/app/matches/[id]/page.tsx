@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/user";
 import { MatchActions } from "@/components/MatchActions";
+import { ReportButton } from "@/components/ReportButton";
 
 const TYPE_LABEL: Record<string, string> = {
   MIRROR: "同じ悩みを持つ人 (ミラー)",
@@ -33,6 +34,7 @@ export default async function MatchDetailPage({
           analysis: { select: { structure: true, categoryPrimary: true, categorySecondary: true, longTermFlag: true } },
         },
       },
+      chatRoom: { select: { id: true } },
     },
   });
   if (!match) notFound();
@@ -115,7 +117,12 @@ export default async function MatchDetailPage({
         matchId={match.id}
         alreadyAccepted={alreadyAccepted}
         status={match.status}
+        chatRoomId={match.chatRoom?.id ?? null}
       />
+
+      <div className="border-t border-gray-100 pt-4">
+        <ReportButton targetType="MATCH" targetId={match.id} label="このマッチを通報する" />
+      </div>
     </div>
   );
 }

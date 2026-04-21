@@ -379,18 +379,85 @@ enum MatchStatus {
   EXPIRED
 }
 
-// Phase 3 で実装予定 (schema は先に置く)
+// Phase 3: チャット
 model ChatRoom {
-  id        String     @id @default(cuid())
-  matchId   String     @unique
-  match     Match      @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  status    ChatStatus @default(ACTIVE)
-  createdAt DateTime   @default(now())
+  id        String        @id @default(cuid())
+  matchId   String        @unique
+  match     Match         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  status    ChatStatus    @default(ACTIVE)
+  createdAt DateTime      @default(now())
   closedAt  DateTime?
+  messages  ChatMessage[]
 }
 
 enum ChatStatus {
   ACTIVE
   CLOSED
   REPORTED
+}
+
+model ChatMessage {
+  id              String   @id @default(cuid())
+  chatRoomId      String
+  chatRoom        ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  senderUserId    String
+  content         String   @db.Text
+  moderationFlag  String?  // null | URL_DETECTED | MONEY_REQUEST | SELF_HARM | ...
+  isDeleted       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([chatRoomId])
+  @@index([senderUserId])
+}
+
+// 通報
+model Report {
+  id              String       @id @default(cuid())
+  reporterUserId  String
+  targetType      ReportTarget
+  targetId        String
+  reason          ReportReason
+  detail          String?      @db.Text
+  status          ReportStatus @default(PENDING)
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  createdAt       DateTime     @default(now())
+
+  @@index([status])
+  @@index([targetType, targetId])
+}
+
+enum ReportTarget {
+  POST
+  MESSAGE
+  USER
+  MATCH
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  MONEY_REQUEST
+  EXTERNAL_SOLICITATION
+  SELF_HARM_CONCERN
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  ACTIONED
+  DISMISSED
+}
+
+// 自動検知ログ (運営側のみ)
+model ModerationEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  eventType String
+  detail    Json
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([eventType])
 }
