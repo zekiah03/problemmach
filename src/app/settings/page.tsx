@@ -1,8 +1,8 @@
-import { getOrCreateGuestUser } from "@/lib/guest";
+import { getGuestUserReadOnly } from "@/lib/guest";
 import { SettingsForm } from "@/components/SettingsForm";
 
 export default async function SettingsPage() {
-  const user = await getOrCreateGuestUser();
+  const user = await getGuestUserReadOnly();
   return (
     <div className="space-y-6 py-4">
       <div className="space-y-1">
@@ -12,9 +12,14 @@ export default async function SettingsPage() {
         </p>
       </div>
       <SettingsForm
-        initialPersona={user.persona}
-        hasApiKey={Boolean(user.encryptedApiKey)}
+        initialPersona={user?.persona ?? "FLAT_POLITE"}
+        hasApiKey={Boolean(user?.encryptedApiKey)}
       />
+      {!user && (
+        <p className="text-xs text-muted">
+          設定を保存すると、あなたの匿名セッションが作成されます。
+        </p>
+      )}
     </div>
   );
 }

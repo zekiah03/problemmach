@@ -8,6 +8,16 @@ const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30日
 // ゲストの投稿数上限 (Phase 0)
 export const GUEST_POST_LIMIT = 3;
 
+// Server Component 用: 読み取り専用。クッキーがなければ null
+// (Next.js 15 では Server Component から cookie.set ができないため)
+export async function getGuestUserReadOnly() {
+  const jar = await cookies();
+  const token = jar.get(COOKIE_NAME)?.value;
+  if (!token) return null;
+  return prisma.user.findUnique({ where: { guestToken: token } });
+}
+
+// Route Handler / Server Action 用: 必要に応じて作成し、cookie をセット
 export async function getOrCreateGuestUser() {
   const jar = await cookies();
   let token = jar.get(COOKIE_NAME)?.value;
