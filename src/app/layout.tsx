@@ -27,6 +27,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/history" className="hover:text-ink">
                 履歴
               </Link>
+              <Link href="/matches" className="hover:text-ink">
+                マッチ
+              </Link>
               <Link href="/dashboard" className="hover:text-ink">
                 ダッシュボード
               </Link>

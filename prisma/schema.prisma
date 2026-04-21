@@ -32,6 +32,7 @@ model User {
   accounts            Account[]
   sessions            Session[]
   insights            PotentialInsight[]
+  matchCondition      UserMatchCondition?
 
   @@index([guestToken])
   @@index([email])
@@ -104,10 +105,13 @@ model Post {
   analysis        Analysis?
   presented       PresentedTemplate[]
   emotions        EmotionScore[]
+  matchesAsA      Match[] @relation("MatchPostA")
+  matchesAsB      Match[] @relation("MatchPostB")
 
   @@index([userId])
   @@index([status])
   @@index([expiresAt])
+  @@index([matchEligible, status])
 }
 
 enum PostStatus {
@@ -313,4 +317,80 @@ model PostEmbedding {
   fullText      Unsupported("vector(1536)")?
   modelUsed     String
   createdAt     DateTime @default(now())
+}
+
+// Phase 2: マッチング条件 (現実性フィルタ用)
+model UserMatchCondition {
+  userId            String   @id
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // 都道府県 (例: "東京都", "北海道", null=未指定)
+  locationRegion    String?
+  // 利用可能な時間帯 (例: ["MORNING", "EVENING", "NIGHT"])
+  availableSlots    String[]
+  language          String   @default("ja")
+  costTolerance     CostTolerance @default(FREE)
+  skillTags         String[]
+  acceptMatch       Boolean  @default(true)
+  updatedAt         DateTime @updatedAt
+}
+
+enum CostTolerance {
+  FREE
+  LOW       // ~ 1000 円
+  MEDIUM    // ~ 5000 円
+  HIGH      // 5000円以上もOK
+}
+
+// Phase 2: マッチ
+model Match {
+  id                 String      @id @default(cuid())
+  postAId            String
+  postA              Post        @relation("MatchPostA", fields: [postAId], references: [id], onDelete: Cascade)
+  postBId            String
+  postB              Post        @relation("MatchPostB", fields: [postBId], references: [id], onDelete: Cascade)
+  matchType          MatchType
+  compatibilityScore Int         // 0-100
+  realnessScore      Int         // 0-100
+  status             MatchStatus @default(SUGGESTED)
+  acceptedByA        Boolean     @default(false)
+  acceptedByB        Boolean     @default(false)
+  createdAt          DateTime    @default(now())
+  expiresAt          DateTime
+  // チャットルーム (Phase 3)
+  chatRoom           ChatRoom?
+
+  @@unique([postAId, postBId])
+  @@index([postAId])
+  @@index([postBId])
+  @@index([status])
+}
+
+enum MatchType {
+  MIRROR        // 同類型ミラー
+  EXPERIENCED   // 経験者マッチ (片方が経験済み)
+}
+
+enum MatchStatus {
+  SUGGESTED
+  ACCEPTED_A
+  ACCEPTED_B
+  MUTUAL
+  DECLINED
+  EXPIRED
+}
+
+// Phase 3 で実装予定 (schema は先に置く)
+model ChatRoom {
+  id        String     @id @default(cuid())
+  matchId   String     @unique
+  match     Match      @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  status    ChatStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
+  closedAt  DateTime?
+}
+
+enum ChatStatus {
+  ACTIVE
+  CLOSED
+  REPORTED
 }
