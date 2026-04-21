@@ -105,6 +105,21 @@ BASE=http://localhost:3000 bash scripts/smoke.sh  # スモークテスト
 スモークテストは公開ページ・cron エンドポイントの基本動作を確認します。
 ポートが 3000 と異なる場合は `BASE` 環境変数で指定してください。
 
+### E2E テスト (実 API キー必須)
+
+```bash
+# 1. .env に本物の ANTHROPIC_API_KEY を設定
+# 2. 別ターミナルで dev を立ち上げておく
+npm run dev
+
+# 3. E2E 実行
+bash scripts/e2e.sh
+```
+
+実際に Anthropic へ問い合わせて、投稿 → 対話 → 分析 → 感情スコア → cron
+まで一本通します。DB に残った分析結果も出力します。
+placeholder キーのままだと Step 1 前に検出して停止します。
+
 ## Phase 2 機能 (実装済み)
 
 - **マッチング** — 同類型ミラー / 経験者マッチ
