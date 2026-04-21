@@ -5,13 +5,14 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
 const BATCH_PER_POST = 30; // 1 つの Post につき検討する候補数
-const TOP_N_PER_POST = 3; // 1 つの Post につき採用する候補数
 const SCORE_THRESHOLD = 35; // これ未満は除外
 const EXPERIENCED_DAYS = 14; // 14 日以上の差で「経験者」と判定
 const MATCH_TTL_DAYS = 30;
 
 const REGION_BONUS = 25;
 const COST_BONUS = 10;
+// 意味的類似度 (pgvector) の最大ボーナス
+const SEMANTIC_MAX_BONUS = 20;
 
 type CandidatePost = {
   id: string;
@@ -70,6 +71,9 @@ export async function runMatchingBatch(): Promise<{
     (c) => c.user.matchCondition?.acceptMatch !== false,
   );
 
+  // 候補の全 post ID について、意味的類似度マトリクスを一度に取得
+  const similarityMap = await fetchSimilarityMap(eligible.map((e) => e.id));
+
   let created = 0;
   let evaluated = 0;
 
@@ -78,7 +82,8 @@ export async function runMatchingBatch(): Promise<{
 
     for (const b of others) {
       evaluated++;
-      const compat = computeCompatibility(a as CandidatePost, b);
+      const semantic = lookupSimilarity(similarityMap, a.id, b.id);
+      const compat = computeCompatibility(a as CandidatePost, b, semantic);
       if (compat.compatibilityScore < SCORE_THRESHOLD) continue;
 
       const realness = computeRealness(a as CandidatePost, b);
@@ -114,6 +119,53 @@ export async function runMatchingBatch(): Promise<{
   return { evaluated, created };
 }
 
+// PostEmbedding の fullText ベクトル間でコサイン類似度を計算し、
+// {[a:b]: similarity} の Map を返す (0〜1)
+async function fetchSimilarityMap(
+  postIds: string[],
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (postIds.length < 2) return map;
+
+  type Row = { a_id: string; b_id: string; sim: number };
+  // pgvector の <=> は cosine distance (0=同一, 2=反対)。
+  // OpenAI text-embedding-3-small は L2 正規化済みなので similarity = 1 - distance
+  const rows = await prisma.$queryRaw<Row[]>(Prisma.sql`
+    SELECT
+      a."postId" AS a_id,
+      b."postId" AS b_id,
+      1 - (a."fullText" <=> b."fullText") AS sim
+    FROM "PostEmbedding" a
+    CROSS JOIN "PostEmbedding" b
+    WHERE a."postId" = ANY(${postIds}::text[])
+      AND b."postId" = ANY(${postIds}::text[])
+      AND a."postId" < b."postId"
+      AND a."fullText" IS NOT NULL
+      AND b."fullText" IS NOT NULL
+  `);
+
+  for (const r of rows) {
+    const sim = Number(r.sim);
+    if (Number.isFinite(sim)) {
+      map.set(pairKey(r.a_id, r.b_id), sim);
+    }
+  }
+  return map;
+}
+
+function pairKey(a: string, b: string): string {
+  return a < b ? `${a}:${b}` : `${b}:${a}`;
+}
+
+function lookupSimilarity(
+  map: Map<string, number>,
+  a: string,
+  b: string,
+): number | null {
+  const v = map.get(pairKey(a, b));
+  return v == null ? null : v;
+}
+
 async function pickCandidatesFor(
   a: CandidatePost,
   pool: CandidatePost[],
@@ -147,9 +199,10 @@ async function pickCandidatesFor(
     .slice(0, BATCH_PER_POST);
 }
 
-function computeCompatibility(
+export function computeCompatibility(
   a: CandidatePost,
   b: CandidatePost,
+  semanticSimilarity: number | null = null,
 ): { compatibilityScore: number; matchType: "MIRROR" | "EXPERIENCED" } {
   let score = 30; // ベース (同類型なので最低限合う)
 
@@ -190,6 +243,13 @@ function computeCompatibility(
 
   // 長期 (共存系) 同士はマッチしやすい
   if (a.longTermFlag && b.longTermFlag) score += 5;
+
+  // 意味的類似度ボーナス (pgvector コサイン類似度 0〜1 を 0〜SEMANTIC_MAX_BONUS に線形変換)
+  // 類似度 0.5 未満はボーナスなし (全然違う話題なら boost しない)
+  if (semanticSimilarity != null && semanticSimilarity >= 0.5) {
+    const normalized = (semanticSimilarity - 0.5) / 0.5; // 0.5→0, 1.0→1
+    score += Math.round(normalized * SEMANTIC_MAX_BONUS);
+  }
 
   return {
     compatibilityScore: Math.min(100, Math.max(0, score)),
