@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  background-color: #fafaf7;
+  color: #1a1a1a;
+}
+
+body {
+  font-feature-settings: "palt" 1;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(74, 111, 165, 0.2);
+}
