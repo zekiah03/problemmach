@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getOrCreateCurrentUser } from "@/lib/user";
 import { generateAITurn } from "@/services/conversation";
+import { checkRateLimit, LLM_LIMIT } from "@/lib/rate-limit";
 
 const schema = z.object({
   selectedOption: z.string().optional(),
@@ -25,6 +26,15 @@ export async function POST(
   }
 
   const user = await getOrCreateCurrentUser();
+
+  const rl = checkRateLimit(`llm:${user.id}`, LLM_LIMIT);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "rate_limited", retryAfterMs: rl.retryAfterMs },
+      { status: 429, headers: { "Retry-After": Math.ceil(rl.retryAfterMs / 1000).toString() } },
+    );
+  }
+
   const post = await prisma.post.findUnique({ where: { id } });
   if (!post || post.userId !== user.id) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });

@@ -11,6 +11,7 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "db:index": "psql \"$DATABASE_URL\" -f prisma/indexes.sql",
     "test": "vitest run",
     "test:watch": "vitest"
   },

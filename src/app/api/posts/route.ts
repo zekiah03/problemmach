@@ -5,6 +5,7 @@ import { getOrCreateCurrentUser } from "@/lib/user";
 import { getGuestPostCount, GUEST_POST_LIMIT } from "@/lib/guest";
 import { judgeRisk, SELF_HARM_RESPONSE } from "@/lib/moderation";
 import { generateAITurn } from "@/services/conversation";
+import { checkRateLimit, LLM_LIMIT } from "@/lib/rate-limit";
 
 const schema = z.object({
   text: z.string().min(30, "悩みは30文字以上入力してください").max(4000),
@@ -25,6 +26,14 @@ export async function POST(req: NextRequest) {
   }
 
   const user = await getOrCreateCurrentUser();
+
+  const rl = checkRateLimit(`llm:${user.id}`, LLM_LIMIT);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "rate_limited", retryAfterMs: rl.retryAfterMs },
+      { status: 429, headers: { "Retry-After": Math.ceil(rl.retryAfterMs / 1000).toString() } },
+    );
+  }
 
   if (user.isGuest) {
     const count = await getGuestPostCount(user.id);

@@ -25,16 +25,37 @@ export async function runAnalysis(params: {
   const systemPrompt = buildAnalyzeSystem(params.persona);
   const { client } = await getAnthropicForUser(params.userId);
 
-  const res = await client.messages.create({
-    model: MODEL_FAST,
-    max_tokens: 1200,
-    system: systemPrompt,
-    messages: [{ role: "user", content: dialogue }],
-  });
+  const callLLM = async (retry = false) => {
+    const messages: { role: "user" | "assistant"; content: string }[] = [
+      { role: "user", content: dialogue },
+    ];
+    if (retry) {
+      messages.push({
+        role: "assistant",
+        content: "申し訳ありません。JSONで返します。",
+      });
+      messages.push({
+        role: "user",
+        content: "JSONオブジェクトのみを返してください。前後のテキストは不要です。",
+      });
+    }
+    const res = await client.messages.create({
+      model: MODEL_FAST,
+      max_tokens: 1200,
+      system: systemPrompt,
+      messages,
+    });
+    const block = res.content.find((b) => b.type === "text");
+    return block && block.type === "text" ? block.text : "";
+  };
 
-  const block = res.content.find((b) => b.type === "text");
-  const raw = block && block.type === "text" ? block.text : "";
-  const parsed = parseAnalysis(raw);
+  let parsed;
+  try {
+    parsed = parseAnalysis(await callLLM());
+  } catch {
+    // LLM が JSON 以外を返した場合、1 回だけリトライ
+    parsed = parseAnalysis(await callLLM(true));
+  }
 
   const analysis = await prisma.analysis.upsert({
     where: { postId: params.postId },
