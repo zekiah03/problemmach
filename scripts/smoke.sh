@@ -49,6 +49,7 @@ check "履歴"          "$BASE/history"          "200"
 check "ダッシュボード" "$BASE/dashboard"        "200"
 check "設定"          "$BASE/settings"         "200"
 check "マッチ一覧"     "$BASE/matches"          "200"
+check "気づき"        "$BASE/insights"         "200"
 
 # 存在しない投稿: Next.js のストリーミング都合で HTTP は 200 でも本文に 404 UI が含まれていればOK
 echo -n "✓ 存在しない投稿の404 UI表示 → "
@@ -64,6 +65,7 @@ check_post "/api/cron/latent (no auth)"    "$BASE/api/cron/latent"    "401"
 check_post "/api/cron/latent (auth)"       "$BASE/api/cron/latent"    "200" "x-cron-secret: $CRON_SECRET"
 check_post "/api/cron/embedding (auth)"    "$BASE/api/cron/embedding" "200" "x-cron-secret: $CRON_SECRET"
 check_post "/api/cron/matching (auth)"     "$BASE/api/cron/matching"  "200" "x-cron-secret: $CRON_SECRET"
+check_post "/api/cron/insights (auth)"     "$BASE/api/cron/insights"  "200" "x-cron-secret: $CRON_SECRET"
 
 echo "---"
 green "Smoke OK"

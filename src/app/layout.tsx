@@ -33,6 +33,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/dashboard" className="hover:text-ink">
                 ダッシュボード
               </Link>
+              <Link href="/insights" className="hover:text-ink">
+                気づき
+              </Link>
               <Link href="/settings" className="hover:text-ink">
                 設定
               </Link>
