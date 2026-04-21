@@ -1,0 +1,215 @@
+// Phase 0 schema (分析エンジン単体MVP)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ユーザー (ゲストも含む)
+model User {
+  id                  String   @id @default(cuid())
+  email               String?  @unique
+  isGuest             Boolean  @default(true)
+  guestToken          String?  @unique
+  ageConfirmed        Boolean  @default(false)
+  termsAcceptedAt     DateTime?
+  persona             Persona  @default(FLAT_POLITE)
+  displayName         String?
+  encryptedApiKey     String?
+  region              String   @default("ja")
+  createdAt           DateTime @default(now())
+  lastActiveAt        DateTime @default(now())
+
+  posts               Post[]
+
+  @@index([guestToken])
+  @@index([email])
+}
+
+enum Persona {
+  FLAT_POLITE
+  FLAT_CASUAL
+  EXPERT
+  FRIEND
+}
+
+// 悩み投稿 (1セッション = 1 Post)
+model Post {
+  id              String     @id @default(cuid())
+  userId          String
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  initialText     String     @db.Text
+  status          PostStatus @default(IN_CONVERSATION)
+  riskFlag        RiskFlag   @default(NONE)
+  matchEligible   Boolean    @default(true)
+
+  // 最終的に確定した分類 (Analysisと同期)
+  categoryPrimary   Category?
+  categorySecondary Category?
+  coexistSubtype    CoexistSub?
+  longTermFlag      Boolean  @default(false)
+
+  createdAt       DateTime   @default(now())
+  completedAt     DateTime?
+  expiresAt       DateTime?
+
+  turns           ConversationTurn[]
+  analysis        Analysis?
+  presented       PresentedTemplate[]
+  emotions        EmotionScore[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+enum PostStatus {
+  IN_CONVERSATION
+  ANALYZED
+  CLOSED
+  BLOCKED
+}
+
+enum RiskFlag {
+  NONE
+  SELF_HARM
+  HARM_OTHERS
+  ILLEGAL
+  MEDICAL
+  PII_DETECTED
+}
+
+enum Category {
+  DECISION
+  CONTROL
+  IDENTITY
+  RISK
+}
+
+enum CoexistSub {
+  LOSS
+  CONSTRAINT
+  INEVITABLE
+  OTHER_PERSON
+}
+
+// 対話の1ターン
+model ConversationTurn {
+  id              String   @id @default(cuid())
+  postId          String
+  post            Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  turnNumber      Int
+  role            TurnRole
+  content         String   @db.Text
+  questionOptions Json?
+  selectedOption  String?
+  filledSlot      TimeSlot?
+
+  createdAt       DateTime @default(now())
+
+  @@unique([postId, turnNumber])
+  @@index([postId])
+}
+
+enum TurnRole {
+  USER
+  AI
+}
+
+enum TimeSlot {
+  ORIGIN       // A: 起点
+  COURSE       // B: 経過
+  PRESENT      // C: 現在
+  IDEAL        // D: 理想
+  CONSTRAINT   // E: 制約
+}
+
+// 顕在分析結果
+model Analysis {
+  id                   String   @id @default(cuid())
+  postId               String   @unique
+  post                 Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  structure            Json     // { ideal, reality, uncertainty }
+  categoryPrimary      Category
+  categorySecondary    Category?
+  confidence           Int
+  timeInfo             Json     // { onset, duration, deadline }
+  solutionTypeScores   Json     // { info, action, dialog, coexist, acceptance }
+  selfResolvableScore  Int
+  coexistSubtype       CoexistSub?
+  longTermFlag         Boolean  @default(false)
+  matchRecommend       Boolean  @default(false)
+  matchReason          String?
+
+  promptVersion        String
+  llmUsed              String
+  createdAt            DateTime @default(now())
+}
+
+// 解決の型マスター
+model SolutionTemplate {
+  id                 String     @id
+  type               SolutionType
+  sub                CoexistSub?
+  title              String
+  question           String     @db.Text
+  whyItFits          String     @db.Text
+  appliesToCategory  Category[]
+  isActive           Boolean    @default(true)
+  version            Int        @default(1)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  presented          PresentedTemplate[]
+
+  @@index([type])
+  @@index([isActive])
+}
+
+enum SolutionType {
+  INFO
+  ACTION
+  DIALOG
+  COEXIST
+  ACCEPTANCE
+}
+
+// 提示されたテンプレの記録
+model PresentedTemplate {
+  id          String           @id @default(cuid())
+  postId      String
+  post        Post             @relation(fields: [postId], references: [id], onDelete: Cascade)
+  templateId  String
+  template    SolutionTemplate @relation(fields: [templateId], references: [id])
+  order       Int
+  userClicked Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+
+  @@unique([postId, templateId])
+  @@index([postId])
+}
+
+// 投稿後の感情スコア (テキスト)
+model EmotionScore {
+  id           String         @id @default(cuid())
+  postId       String
+  post         Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  text         String         @db.Text
+  scoreNumeric Int?
+  context      EmotionContext
+  recordedAt   DateTime       @default(now())
+
+  @@index([postId])
+}
+
+enum EmotionContext {
+  POST_ANALYSIS
+  FOLLOW_UP_1W
+  FOLLOW_UP_1M
+}
