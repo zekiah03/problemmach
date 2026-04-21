@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getOrCreateGuestUser } from "@/lib/guest";
+import { getOrCreateCurrentUser } from "@/lib/user";
 import { encrypt } from "@/lib/crypto";
 
 const schema = z.object({
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_input" }, { status: 400 });
   }
-  const user = await getOrCreateGuestUser();
+  const user = await getOrCreateCurrentUser();
   const encrypted = encrypt(parsed.data.apiKey);
   await prisma.user.update({
     where: { id: user.id },
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE() {
-  const user = await getOrCreateGuestUser();
+  const user = await getOrCreateCurrentUser();
   await prisma.user.update({
     where: { id: user.id },
     data: { encryptedApiKey: null },

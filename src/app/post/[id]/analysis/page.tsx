@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getGuestUserReadOnly } from "@/lib/guest";
+import { getCurrentUser } from "@/lib/user";
 import { AnalysisCard } from "@/components/AnalysisCard";
 import { SolutionTemplateCard } from "@/components/SolutionTemplateCard";
 import { EmotionScoreInput } from "@/components/EmotionScoreInput";
@@ -12,7 +12,7 @@ export default async function AnalysisPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const user = await getGuestUserReadOnly();
+  const user = await getCurrentUser();
   if (!user) notFound();
 
   const post = await prisma.post.findUnique({

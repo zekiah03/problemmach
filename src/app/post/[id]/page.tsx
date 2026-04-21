@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getGuestUserReadOnly } from "@/lib/guest";
+import { getCurrentUser } from "@/lib/user";
 import { ConversationView } from "@/components/ConversationView";
 
 export default async function PostPage({
@@ -9,7 +9,7 @@ export default async function PostPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const user = await getGuestUserReadOnly();
+  const user = await getCurrentUser();
   if (!user) notFound();
   const post = await prisma.post.findUnique({
     where: { id },

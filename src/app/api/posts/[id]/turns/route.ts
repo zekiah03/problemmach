@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getOrCreateGuestUser } from "@/lib/guest";
+import { getOrCreateCurrentUser } from "@/lib/user";
 import { generateAITurn } from "@/services/conversation";
 
 const schema = z.object({
@@ -24,7 +24,7 @@ export async function POST(
     return NextResponse.json({ error: "empty_response" }, { status: 400 });
   }
 
-  const user = await getOrCreateGuestUser();
+  const user = await getOrCreateCurrentUser();
   const post = await prisma.post.findUnique({ where: { id } });
   if (!post || post.userId !== user.id) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });

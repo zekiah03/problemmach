@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getOrCreateGuestUser, getGuestPostCount, GUEST_POST_LIMIT } from "@/lib/guest";
+import { getOrCreateCurrentUser } from "@/lib/user";
+import { getGuestPostCount, GUEST_POST_LIMIT } from "@/lib/guest";
 import { judgeRisk, SELF_HARM_RESPONSE } from "@/lib/moderation";
 import { generateAITurn } from "@/services/conversation";
 
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const user = await getOrCreateGuestUser();
+  const user = await getOrCreateCurrentUser();
 
   if (user.isGuest) {
     const count = await getGuestPostCount(user.id);

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getOrCreateGuestUser } from "@/lib/guest";
+import { getOrCreateCurrentUser } from "@/lib/user";
 
 const schema = z.object({
   persona: z.enum(["FLAT_POLITE", "FLAT_CASUAL", "EXPERT", "FRIEND"]),
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_input" }, { status: 400 });
   }
-  const user = await getOrCreateGuestUser();
+  const user = await getOrCreateCurrentUser();
   await prisma.user.update({
     where: { id: user.id },
     data: { persona: parsed.data.persona },

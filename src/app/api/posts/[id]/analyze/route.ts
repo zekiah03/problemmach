@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getOrCreateGuestUser } from "@/lib/guest";
+import { getOrCreateCurrentUser } from "@/lib/user";
 import { runAnalysis } from "@/services/analysis";
 
 export async function POST(
@@ -8,7 +8,7 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> },
 ) {
   const { id } = await ctx.params;
-  const user = await getOrCreateGuestUser();
+  const user = await getOrCreateCurrentUser();
   const post = await prisma.post.findUnique({ where: { id } });
   if (!post || post.userId !== user.id) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });

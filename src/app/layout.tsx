@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { auth, signOut } from "@/lib/auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -7,7 +8,10 @@ export const metadata: Metadata = {
   description: "悩みを対話で整理し、解決の型を提示するアプリ。一人で抱え込まないための分析エンジン。",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth();
+  const isAuth = Boolean(session?.user);
+
   return (
     <html lang="ja">
       <body>
@@ -20,9 +24,31 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/new" className="hover:text-ink">
                 新しい悩み
               </Link>
+              <Link href="/history" className="hover:text-ink">
+                履歴
+              </Link>
+              <Link href="/dashboard" className="hover:text-ink">
+                ダッシュボード
+              </Link>
               <Link href="/settings" className="hover:text-ink">
                 設定
               </Link>
+              {isAuth ? (
+                <form
+                  action={async () => {
+                    "use server";
+                    await signOut({ redirectTo: "/" });
+                  }}
+                >
+                  <button type="submit" className="hover:text-ink">
+                    ログアウト
+                  </button>
+                </form>
+              ) : (
+                <Link href="/signin" className="hover:text-ink">
+                  ログイン
+                </Link>
+              )}
             </nav>
           </div>
         </header>

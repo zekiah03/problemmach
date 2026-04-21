@@ -1,8 +1,8 @@
-import { getGuestUserReadOnly } from "@/lib/guest";
+import { getCurrentUser } from "@/lib/user";
 import { SettingsForm } from "@/components/SettingsForm";
 
 export default async function SettingsPage() {
-  const user = await getGuestUserReadOnly();
+  const user = await getCurrentUser();
   return (
     <div className="space-y-6 py-4">
       <div className="space-y-1">

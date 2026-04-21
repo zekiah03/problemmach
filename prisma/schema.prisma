@@ -1,17 +1,22 @@
-// Phase 0 schema (分析エンジン単体MVP)
+// Phase 0 + Phase 1 schema
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
 }
 
-// ユーザー (ゲストも含む)
+// ユーザー (ゲスト + 認証ユーザー)
+// Auth.js v5 互換 (emailVerified, image, accounts, sessions)
 model User {
   id                  String   @id @default(cuid())
   email               String?  @unique
+  emailVerified       DateTime?
+  image               String?
   isGuest             Boolean  @default(true)
   guestToken          String?  @unique
   ageConfirmed        Boolean  @default(false)
@@ -24,9 +29,47 @@ model User {
   lastActiveAt        DateTime @default(now())
 
   posts               Post[]
+  accounts            Account[]
+  sessions            Session[]
+  insights            PotentialInsight[]
 
   @@index([guestToken])
   @@index([email])
+}
+
+// Auth.js 標準テーブル
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
 enum Persona {
@@ -212,4 +255,62 @@ enum EmotionContext {
   POST_ANALYSIS
   FOLLOW_UP_1W
   FOLLOW_UP_1M
+}
+
+// Phase 1: 潜在分析 (バッチで生成、ユーザーには直接見せない)
+model LatentAnalysis {
+  id                   String   @id @default(cuid())
+  postId               String   @unique
+  emotionLayers        Json     // { surface, deep, meta }
+  cognitiveDistortions Json     // 検出された歪みの配列
+  rootCauses           Json     // 5Why 風の連鎖
+  patternTags          String[] // 過去投稿との関連タグ
+  visibility           InsightVisibility @default(HIDDEN)
+  llmUsed              String
+  promptVersion        String
+  createdAt            DateTime @default(now())
+
+  @@index([postId])
+}
+
+enum InsightVisibility {
+  HIDDEN
+  HINT       // 気づきフェーズで本人にヒントとして提示可能
+  SHOWN
+}
+
+// Phase 1: 気づきフェーズで本人に還元する候補
+model PotentialInsight {
+  id          String              @id @default(cuid())
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  insightType String
+  detail      Json
+  confidence  Int
+  status      InsightStatus       @default(PENDING)
+  createdAt   DateTime            @default(now())
+  shownAt     DateTime?
+
+  @@index([userId])
+  @@index([status])
+}
+
+enum InsightStatus {
+  PENDING
+  SHOWN
+  DISMISSED
+  ACCEPTED
+}
+
+// Phase 1: 投稿の埋め込みベクトル (pgvector)
+// Phase 2 のマッチングで本格使用
+model PostEmbedding {
+  postId        String  @id
+  ideal         Unsupported("vector(1536)")?
+  reality       Unsupported("vector(1536)")?
+  needVector    Unsupported("vector(1536)")?
+  offerVector   Unsupported("vector(1536)")?
+  fullText      Unsupported("vector(1536)")?
+  modelUsed     String
+  createdAt     DateTime @default(now())
 }
