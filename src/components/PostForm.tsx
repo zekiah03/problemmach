@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { RiskBanner } from "./RiskBanner";
@@ -10,13 +11,15 @@ type SelfHarmResp = {
   resources: { name: string; description: string; phone?: string; url?: string }[];
 };
 
+type ErrorState = { message: string; cta?: { href: string; label: string } } | null;
+
 export function PostForm() {
   const router = useRouter();
   const [text, setText] = useState("");
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorState>(null);
   const [selfHarm, setSelfHarm] = useState<SelfHarmResp | null>(null);
 
   const charCount = text.length;
@@ -36,15 +39,18 @@ export function PostForm() {
       const data = await res.json();
       if (!res.ok) {
         if (data.error === "guest_limit") {
-          setError(
-            `ゲスト投稿の上限 (${data.limit} 件) に達しています。現時点ではこれ以上投稿できません。`,
-          );
+          setError({
+            message: `ゲスト投稿の上限 (${data.limit} 件) に達しています。続けるにはメールでログインしてください。これまでの投稿は引き継がれます。`,
+            cta: { href: "/signin", label: "ログインして続ける" },
+          });
         } else if (data.riskFlag === "PII_DETECTED") {
-          setError(data.message);
+          setError({ message: data.message });
         } else if (data.riskFlag === "HARM_OTHERS" || data.riskFlag === "ILLEGAL") {
-          setError(data.message);
+          setError({ message: data.message });
         } else {
-          setError("送信に失敗しました。時間をおいて再度お試しください。");
+          setError({
+            message: "送信に失敗しました。時間をおいて再度お試しください。",
+          });
         }
         return;
       }
@@ -58,7 +64,9 @@ export function PostForm() {
         router.push(`/post/${data.postId}`);
       }
     } catch {
-      setError("通信エラーが発生しました。時間をおいて再度お試しください。");
+      setError({
+        message: "通信エラーが発生しました。時間をおいて再度お試しください。",
+      });
     } finally {
       setLoading(false);
     }
@@ -119,8 +127,16 @@ export function PostForm() {
       </div>
 
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          {error}
+        <div className="space-y-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <p>{error.message}</p>
+          {error.cta && (
+            <Link
+              href={error.cta.href}
+              className="inline-block rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white"
+            >
+              {error.cta.label}
+            </Link>
+          )}
         </div>
       )}
 

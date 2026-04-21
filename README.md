@@ -76,9 +76,35 @@ prisma/
   seed.ts           解決の型シード
 ```
 
+## Phase 1 機能 (実装済み)
+
+- **Auth.js v5 マジックリンク認証** — メール送信は Resend (キー未設定時は console 出力)
+- **/history** — 投稿履歴一覧
+- **/dashboard** — 投稿数・自己解決スコア平均・4類型比率・解決の型平均・感情ログ
+- **潜在分析バッチ** — Sonnet で感情層 / 認知歪み / 5Why 風根源を裏で解析。`/api/cron/latent` を `X-Cron-Secret` ヘッダ付きで叩く
+- **pgvector + OpenAI embedding** — `text-embedding-3-small` で投稿を 1536 次元にエンコード。Phase 2 マッチングで使用。`/api/cron/embedding`
+
+### Cron 設定例
+
+```bash
+# 1日1回、潜在分析と embedding を更新
+0 3 * * * curl -X POST -H "X-Cron-Secret: $CRON_SECRET" https://your-domain/api/cron/latent
+5 3 * * * curl -X POST -H "X-Cron-Secret: $CRON_SECRET" https://your-domain/api/cron/embedding
+```
+
+Vercel を使う場合は `vercel.json` で同等の設定が可能。
+
+## テスト
+
+```bash
+npm test          # vitest run
+npm run test:watch
+```
+
+現在 30 件のユニットテスト (parsers / crypto / pickTemplates)。
+
 ## 今後の Phase
 
-- **Phase 1**: 継続性 (マジックリンク認証・投稿履歴・可視化ダッシュボード・潜在分析バッチ・pgvector)
 - **Phase 2**: マッチング (相補マッチ、ミラー+経験者、現実性フィルタ)
 - **Phase 3**: マッチ後チャット・通報・モデレーションキュー
 - **Phase 4**: 気づきフェーズ (長期寄り添い・パターン還元)

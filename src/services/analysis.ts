@@ -6,7 +6,7 @@ import {
   buildAnalyzeSystem,
   pickTemplates,
 } from "@/lib/prompts/analyze";
-import type { AnalysisResult } from "@/lib/types";
+import { parseAnalysis } from "@/lib/parsers";
 import { Category, CoexistSub, Persona } from "@prisma/client";
 
 export async function runAnalysis(params: {
@@ -119,65 +119,4 @@ function renderDialogue(
   }
   lines.push("\n上記の対話を読み、分析結果をJSONで返してください。");
   return lines.join("\n\n");
-}
-
-function parseAnalysis(raw: string): AnalysisResult {
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("Analysis JSON not found");
-  const j = JSON.parse(jsonMatch[0]);
-
-  return {
-    structure: {
-      ideal: String(j.structure?.ideal ?? ""),
-      reality: String(j.structure?.reality ?? ""),
-      uncertainty: String(j.structure?.uncertainty ?? ""),
-    },
-    category: {
-      primary: normalizeCategory(j.category?.primary) ?? "DECISION",
-      secondary: normalizeCategory(j.category?.secondary),
-      confidence: clamp(Number(j.category?.confidence ?? 50), 0, 100),
-    },
-    time_info: {
-      onset: String(j.time_info?.onset ?? ""),
-      duration: normalizeDuration(j.time_info?.duration),
-      deadline: j.time_info?.deadline ? String(j.time_info.deadline) : null,
-    },
-    solution_type_scores: {
-      info: clamp(Number(j.solution_type_scores?.info ?? 0), 0, 100),
-      action: clamp(Number(j.solution_type_scores?.action ?? 0), 0, 100),
-      dialog: clamp(Number(j.solution_type_scores?.dialog ?? 0), 0, 100),
-      coexist: clamp(Number(j.solution_type_scores?.coexist ?? 0), 0, 100),
-      acceptance: clamp(Number(j.solution_type_scores?.acceptance ?? 0), 0, 100),
-    },
-    self_resolvable_score: clamp(Number(j.self_resolvable_score ?? 50), 0, 100),
-    coexist_subtype: normalizeCoexistSub(j.coexist_subtype),
-    long_term_flag: Boolean(j.long_term_flag),
-    match_recommend: Boolean(j.match_recommend),
-    match_reason: j.match_reason ? String(j.match_reason) : null,
-  };
-}
-
-function normalizeCategory(v: unknown): "DECISION" | "CONTROL" | "IDENTITY" | "RISK" | null {
-  const s = String(v ?? "").toUpperCase();
-  if (s === "DECISION" || s === "CONTROL" || s === "IDENTITY" || s === "RISK") return s;
-  return null;
-}
-
-function normalizeDuration(v: unknown): "ACUTE" | "CHRONIC" | "UNKNOWN" {
-  const s = String(v ?? "").toUpperCase();
-  if (s === "ACUTE" || s === "CHRONIC") return s;
-  return "UNKNOWN";
-}
-
-function normalizeCoexistSub(
-  v: unknown,
-): "LOSS" | "CONSTRAINT" | "INEVITABLE" | "OTHER_PERSON" | null {
-  const s = String(v ?? "").toUpperCase();
-  if (s === "LOSS" || s === "CONSTRAINT" || s === "INEVITABLE" || s === "OTHER_PERSON") return s;
-  return null;
-}
-
-function clamp(n: number, min: number, max: number): number {
-  if (Number.isNaN(n)) return min;
-  return Math.min(max, Math.max(min, Math.round(n)));
 }

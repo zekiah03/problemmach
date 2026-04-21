@@ -1,12 +1,8 @@
 import { getAnthropicForUser, MODEL_FAST } from "./anthropic";
 import { RISK_JUDGE_SYSTEM } from "./prompts/risk";
-import { RiskFlag } from "@prisma/client";
+import { parseRiskResponse, type RiskParseResult } from "./parsers";
 
-export type RiskResult = {
-  flag: RiskFlag;
-  piiDetected: boolean;
-  reasoning: string;
-};
+export type RiskResult = RiskParseResult;
 
 const MAX_TEXT_LENGTH = 4000;
 
@@ -30,37 +26,6 @@ export async function judgeRisk(userId: string, text: string): Promise<RiskResul
   const raw = block && block.type === "text" ? block.text : "";
 
   return parseRiskResponse(raw);
-}
-
-function parseRiskResponse(raw: string): RiskResult {
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    return { flag: "NONE", piiDetected: false, reasoning: "unparsed" };
-  }
-  try {
-    const j = JSON.parse(jsonMatch[0]);
-    const flag = normalizeFlag(j.flag);
-    return {
-      flag,
-      piiDetected: Boolean(j.pii_detected),
-      reasoning: String(j.reasoning ?? ""),
-    };
-  } catch {
-    return { flag: "NONE", piiDetected: false, reasoning: "parse_error" };
-  }
-}
-
-function normalizeFlag(raw: unknown): RiskFlag {
-  const v = String(raw ?? "").toUpperCase();
-  const valid: RiskFlag[] = [
-    "NONE",
-    "SELF_HARM",
-    "HARM_OTHERS",
-    "ILLEGAL",
-    "MEDICAL",
-    "PII_DETECTED",
-  ];
-  return (valid as string[]).includes(v) ? (v as RiskFlag) : "NONE";
 }
 
 // 自傷検知時のユーザー向け応答 (日本の相談窓口)

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ChatBubble } from "./ChatBubble";
 import { ProgressBar } from "./ProgressBar";
 import { QuestionOptions } from "./QuestionOptions";
+import { Spinner } from "./Spinner";
 
 type Slot = "ORIGIN" | "COURSE" | "PRESENT" | "IDEAL" | "CONSTRAINT";
 
@@ -38,6 +39,7 @@ export function ConversationView({ postId, initialTurns }: Props) {
   const [turns, setTurns] = useState<Turn[]>(initialTurns);
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const filledSlots: Slot[] = turns
     .filter((t) => t.role === "AI" && t.filledSlot)
@@ -52,29 +54,38 @@ export function ConversationView({ postId, initialTurns }: Props) {
     text?: string;
   }) => {
     setLoading(true);
-    try {
-      const userContent = [payload.selectedOption, payload.text]
-        .filter(Boolean)
-        .join(" / ");
-      setTurns((prev) => [
-        ...prev,
-        {
-          id: `tmp-u-${Date.now()}`,
-          turnNumber: prev.length,
-          role: "USER",
-          content: userContent,
-          questionOptions: null,
-          filledSlot: null,
-        },
-      ]);
+    setError(null);
+    const userContent = [payload.selectedOption, payload.text]
+      .filter(Boolean)
+      .join(" / ");
+    const tempUserId = `tmp-u-${Date.now()}`;
+    setTurns((prev) => [
+      ...prev,
+      {
+        id: tempUserId,
+        turnNumber: prev.length,
+        role: "USER",
+        content: userContent,
+        questionOptions: null,
+        filledSlot: null,
+      },
+    ]);
 
+    try {
       const res = await fetch(`/api/posts/${postId}/turns`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = (await res.json()) as { aiTurn?: AITurnResp; error?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        aiTurn?: AITurnResp;
+        error?: string;
+      };
       if (!res.ok || !data.aiTurn) {
+        setTurns((prev) => prev.filter((t) => t.id !== tempUserId));
+        setError(
+          "送信に失敗しました。もう一度お試しください。問題が続く場合はページを再読み込みしてください。",
+        );
         return;
       }
 
@@ -94,10 +105,9 @@ export function ConversationView({ postId, initialTurns }: Props) {
           filledSlot: a.target_slot,
         },
       ]);
-
-      if (a.ready_to_analyze) {
-        // ボタンを明示的に押させる (突然遷移しない)
-      }
+    } catch {
+      setTurns((prev) => prev.filter((t) => t.id !== tempUserId));
+      setError("通信エラーが発生しました。時間をおいて再度お試しください。");
     } finally {
       setLoading(false);
     }
@@ -105,12 +115,17 @@ export function ConversationView({ postId, initialTurns }: Props) {
 
   const runAnalysis = async () => {
     setAnalyzing(true);
+    setError(null);
     try {
       const res = await fetch(`/api/posts/${postId}/analyze`, { method: "POST" });
       if (res.ok) {
         router.push(`/post/${postId}/analysis`);
+      } else {
+        setError("分析に失敗しました。時間をおいて再度お試しください。");
+        setAnalyzing(false);
       }
-    } finally {
+    } catch {
+      setError("通信エラーが発生しました。時間をおいて再度お試しください。");
       setAnalyzing(false);
     }
   };
@@ -131,6 +146,12 @@ export function ConversationView({ postId, initialTurns }: Props) {
           </ChatBubble>
         )}
       </div>
+
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {error}
+        </div>
+      )}
 
       {!analyzing && lastAITurn && !readyToAnalyze && (
         <div className="sticky bottom-2 space-y-3 rounded-lg border border-gray-200 bg-paper/95 p-4 backdrop-blur">
@@ -168,8 +189,11 @@ export function ConversationView({ postId, initialTurns }: Props) {
         </div>
       )}
 
-      {analyzing && !readyToAnalyze && (
-        <p className="text-center text-sm text-muted">分析しています...</p>
+      {analyzing && (
+        <div className="flex flex-col items-center gap-2 py-6">
+          <Spinner size="md" />
+          <p className="text-sm text-muted">分析しています... (10秒ほどかかります)</p>
+        </div>
       )}
     </div>
   );
