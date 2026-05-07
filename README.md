@@ -39,19 +39,32 @@
 
 ## セットアップ
 
-1. `.env.example` を `.env` にコピーして値を埋める
-   - `ENCRYPTION_KEY` は `openssl rand -base64 32` で生成
-2. Postgres を起動してデータベースを作成
+### A. Supabase で運用する場合 (推奨)
+
+スキーマは `problemmach` (専用) を使用。`public` には触らない。
+
+1. Supabase ダッシュボードで Database password を確認
+2. `.env.example` を `.env` にコピーして以下を埋める
+   - `DATABASE_URL` / `DIRECT_URL` の `<PASSWORD>` を実際のパスワードに
+   - `ENCRYPTION_KEY` を `openssl rand -base64 32` で生成
+   - `ANTHROPIC_API_KEY` をセット
 3. 依存インストール
    ```bash
    npm install
    ```
-4. Prisma スキーマ適用 & 解決の型シード
+4. スキーマは MCP で投入済みのはず。次に解決の型をシード + HNSW インデックス作成
    ```bash
-   npm run db:push
-   npm run db:seed
+   npm run db:seed   # 41 templates
+   npm run db:index  # HNSW + 補助 index
    ```
 5. 開発サーバー起動
+
+### B. ローカル Postgres で運用する場合
+
+1. ローカル Postgres + pgvector を用意
+2. `.env` の `DATABASE_URL` をローカル接続文字列に
+3. 通常通り `npm run db:push && npm run db:seed && npm run db:index`
+4. 開発サーバー起動
    ```bash
    npm run dev
    ```

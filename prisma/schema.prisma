@@ -1,4 +1,4 @@
-// Phase 0 + Phase 1 schema
+// Phase 0 + Phase 1 + Phase 2-3 schema
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
@@ -7,35 +7,38 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  extensions = [vector]
+  directUrl  = env("DIRECT_URL")
+  extensions = [vector(schema: "extensions")]
+  schemas    = ["problemmach"]
 }
 
 // ユーザー (ゲスト + 認証ユーザー)
 // Auth.js v5 互換 (emailVerified, image, accounts, sessions)
 model User {
-  id                  String   @id @default(cuid())
-  email               String?  @unique
-  emailVerified       DateTime?
-  image               String?
-  isGuest             Boolean  @default(true)
-  guestToken          String?  @unique
-  ageConfirmed        Boolean  @default(false)
-  termsAcceptedAt     DateTime?
-  persona             Persona  @default(FLAT_POLITE)
-  displayName         String?
-  encryptedApiKey     String?
-  region              String   @default("ja")
-  createdAt           DateTime @default(now())
-  lastActiveAt        DateTime @default(now())
+  id              String    @id @default(cuid())
+  email           String?   @unique
+  emailVerified   DateTime?
+  image           String?
+  isGuest         Boolean   @default(true)
+  guestToken      String?   @unique
+  ageConfirmed    Boolean   @default(false)
+  termsAcceptedAt DateTime?
+  persona         Persona   @default(FLAT_POLITE)
+  displayName     String?
+  encryptedApiKey String?
+  region          String    @default("ja")
+  createdAt       DateTime  @default(now())
+  lastActiveAt    DateTime  @default(now())
 
-  posts               Post[]
-  accounts            Account[]
-  sessions            Session[]
-  insights            PotentialInsight[]
-  matchCondition      UserMatchCondition?
+  posts          Post[]
+  accounts       Account[]
+  sessions       Session[]
+  insights       PotentialInsight[]
+  matchCondition UserMatchCondition?
 
   @@index([guestToken])
   @@index([email])
+  @@schema("problemmach")
 }
 
 // Auth.js 標準テーブル
@@ -55,6 +58,7 @@ model Account {
   session_state     String?
 
   @@unique([provider, providerAccountId])
+  @@schema("problemmach")
 }
 
 model Session {
@@ -63,6 +67,8 @@ model Session {
   userId       String
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expires      DateTime
+
+  @@schema("problemmach")
 }
 
 model VerificationToken {
@@ -71,6 +77,7 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+  @@schema("problemmach")
 }
 
 enum Persona {
@@ -78,40 +85,43 @@ enum Persona {
   FLAT_CASUAL
   EXPERT
   FRIEND
+
+  @@schema("problemmach")
 }
 
 // 悩み投稿 (1セッション = 1 Post)
 model Post {
-  id              String     @id @default(cuid())
-  userId          String
-  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  initialText     String     @db.Text
-  status          PostStatus @default(IN_CONVERSATION)
-  riskFlag        RiskFlag   @default(NONE)
-  matchEligible   Boolean    @default(true)
+  initialText   String     @db.Text
+  status        PostStatus @default(IN_CONVERSATION)
+  riskFlag      RiskFlag   @default(NONE)
+  matchEligible Boolean    @default(true)
 
   // 最終的に確定した分類 (Analysisと同期)
   categoryPrimary   Category?
   categorySecondary Category?
   coexistSubtype    CoexistSub?
-  longTermFlag      Boolean  @default(false)
+  longTermFlag      Boolean     @default(false)
 
-  createdAt       DateTime   @default(now())
-  completedAt     DateTime?
-  expiresAt       DateTime?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+  expiresAt   DateTime?
 
-  turns           ConversationTurn[]
-  analysis        Analysis?
-  presented       PresentedTemplate[]
-  emotions        EmotionScore[]
-  matchesAsA      Match[] @relation("MatchPostA")
-  matchesAsB      Match[] @relation("MatchPostB")
+  turns      ConversationTurn[]
+  analysis   Analysis?
+  presented  PresentedTemplate[]
+  emotions   EmotionScore[]
+  matchesAsA Match[]             @relation("MatchPostA")
+  matchesAsB Match[]             @relation("MatchPostB")
 
   @@index([userId])
   @@index([status])
   @@index([expiresAt])
   @@index([matchEligible, status])
+  @@schema("problemmach")
 }
 
 enum PostStatus {
@@ -119,6 +129,8 @@ enum PostStatus {
   ANALYZED
   CLOSED
   BLOCKED
+
+  @@schema("problemmach")
 }
 
 enum RiskFlag {
@@ -128,6 +140,8 @@ enum RiskFlag {
   ILLEGAL
   MEDICAL
   PII_DETECTED
+
+  @@schema("problemmach")
 }
 
 enum Category {
@@ -135,6 +149,8 @@ enum Category {
   CONTROL
   IDENTITY
   RISK
+
+  @@schema("problemmach")
 }
 
 enum CoexistSub {
@@ -142,81 +158,91 @@ enum CoexistSub {
   CONSTRAINT
   INEVITABLE
   OTHER_PERSON
+
+  @@schema("problemmach")
 }
 
 // 対話の1ターン
 model ConversationTurn {
-  id              String   @id @default(cuid())
-  postId          String
-  post            Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   turnNumber      Int
   role            TurnRole
-  content         String   @db.Text
+  content         String    @db.Text
   questionOptions Json?
   selectedOption  String?
   filledSlot      TimeSlot?
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([postId, turnNumber])
   @@index([postId])
+  @@schema("problemmach")
 }
 
 enum TurnRole {
   USER
   AI
+
+  @@schema("problemmach")
 }
 
 enum TimeSlot {
-  ORIGIN       // A: 起点
-  COURSE       // B: 経過
-  PRESENT      // C: 現在
-  IDEAL        // D: 理想
-  CONSTRAINT   // E: 制約
+  ORIGIN // A: 起点
+  COURSE // B: 経過
+  PRESENT // C: 現在
+  IDEAL // D: 理想
+  CONSTRAINT // E: 制約
+
+  @@schema("problemmach")
 }
 
 // 顕在分析結果
 model Analysis {
-  id                   String   @id @default(cuid())
-  postId               String   @unique
-  post                 Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  postId String @unique
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
 
-  structure            Json     // { ideal, reality, uncertainty }
-  categoryPrimary      Category
-  categorySecondary    Category?
-  confidence           Int
-  timeInfo             Json     // { onset, duration, deadline }
-  solutionTypeScores   Json     // { info, action, dialog, coexist, acceptance }
-  selfResolvableScore  Int
-  coexistSubtype       CoexistSub?
-  longTermFlag         Boolean  @default(false)
-  matchRecommend       Boolean  @default(false)
-  matchReason          String?
+  structure           Json // { ideal, reality, uncertainty }
+  categoryPrimary     Category
+  categorySecondary   Category?
+  confidence          Int
+  timeInfo            Json // { onset, duration, deadline }
+  solutionTypeScores  Json // { info, action, dialog, coexist, acceptance }
+  selfResolvableScore Int
+  coexistSubtype      CoexistSub?
+  longTermFlag        Boolean     @default(false)
+  matchRecommend      Boolean     @default(false)
+  matchReason         String?
 
-  promptVersion        String
-  llmUsed              String
-  createdAt            DateTime @default(now())
+  promptVersion String
+  llmUsed       String
+  createdAt     DateTime @default(now())
+
+  @@schema("problemmach")
 }
 
 // 解決の型マスター
 model SolutionTemplate {
-  id                 String     @id
-  type               SolutionType
-  sub                CoexistSub?
-  title              String
-  question           String     @db.Text
-  whyItFits          String     @db.Text
-  appliesToCategory  Category[]
-  isActive           Boolean    @default(true)
-  version            Int        @default(1)
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  id                String       @id
+  type              SolutionType
+  sub               CoexistSub?
+  title             String
+  question          String       @db.Text
+  whyItFits         String       @db.Text
+  appliesToCategory Category[]
+  isActive          Boolean      @default(true)
+  version           Int          @default(1)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
-  presented          PresentedTemplate[]
+  presented PresentedTemplate[]
 
   @@index([type])
   @@index([isActive])
+  @@schema("problemmach")
 }
 
 enum SolutionType {
@@ -225,6 +251,8 @@ enum SolutionType {
   DIALOG
   COEXIST
   ACCEPTANCE
+
+  @@schema("problemmach")
 }
 
 // 提示されたテンプレの記録
@@ -240,6 +268,7 @@ model PresentedTemplate {
 
   @@unique([postId, templateId])
   @@index([postId])
+  @@schema("problemmach")
 }
 
 // 投稿後の感情スコア (テキスト)
@@ -253,50 +282,57 @@ model EmotionScore {
   recordedAt   DateTime       @default(now())
 
   @@index([postId])
+  @@schema("problemmach")
 }
 
 enum EmotionContext {
   POST_ANALYSIS
   FOLLOW_UP_1W
   FOLLOW_UP_1M
+
+  @@schema("problemmach")
 }
 
 // Phase 1: 潜在分析 (バッチで生成、ユーザーには直接見せない)
 model LatentAnalysis {
-  id                   String   @id @default(cuid())
-  postId               String   @unique
-  emotionLayers        Json     // { surface, deep, meta }
-  cognitiveDistortions Json     // 検出された歪みの配列
-  rootCauses           Json     // 5Why 風の連鎖
+  id                   String            @id @default(cuid())
+  postId               String            @unique
+  emotionLayers        Json // { surface, deep, meta }
+  cognitiveDistortions Json // 検出された歪みの配列
+  rootCauses           Json // 5Why 風の連鎖
   patternTags          String[] // 過去投稿との関連タグ
   visibility           InsightVisibility @default(HIDDEN)
   llmUsed              String
   promptVersion        String
-  createdAt            DateTime @default(now())
+  createdAt            DateTime          @default(now())
 
   @@index([postId])
+  @@schema("problemmach")
 }
 
 enum InsightVisibility {
   HIDDEN
-  HINT       // 気づきフェーズで本人にヒントとして提示可能
+  HINT // 気づきフェーズで本人にヒントとして提示可能
   SHOWN
+
+  @@schema("problemmach")
 }
 
 // Phase 1: 気づきフェーズで本人に還元する候補
 model PotentialInsight {
-  id          String              @id @default(cuid())
+  id          String        @id @default(cuid())
   userId      String
-  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   insightType String
   detail      Json
   confidence  Int
-  status      InsightStatus       @default(PENDING)
-  createdAt   DateTime            @default(now())
+  status      InsightStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
   shownAt     DateTime?
 
   @@index([userId])
   @@index([status])
+  @@schema("problemmach")
 }
 
 enum InsightStatus {
@@ -304,41 +340,49 @@ enum InsightStatus {
   SHOWN
   DISMISSED
   ACCEPTED
+
+  @@schema("problemmach")
 }
 
 // Phase 1: 投稿の埋め込みベクトル (pgvector)
 // Phase 2 のマッチングで本格使用
 model PostEmbedding {
-  postId        String  @id
-  ideal         Unsupported("vector(1536)")?
-  reality       Unsupported("vector(1536)")?
-  needVector    Unsupported("vector(1536)")?
-  offerVector   Unsupported("vector(1536)")?
-  fullText      Unsupported("vector(1536)")?
-  modelUsed     String
-  createdAt     DateTime @default(now())
+  postId      String                       @id
+  ideal       Unsupported("vector(1536)")?
+  reality     Unsupported("vector(1536)")?
+  needVector  Unsupported("vector(1536)")?
+  offerVector Unsupported("vector(1536)")?
+  fullText    Unsupported("vector(1536)")?
+  modelUsed   String
+  createdAt   DateTime                     @default(now())
+
+  @@schema("problemmach")
 }
 
 // Phase 2: マッチング条件 (現実性フィルタ用)
 model UserMatchCondition {
-  userId            String   @id
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String        @id
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   // 都道府県 (例: "東京都", "北海道", null=未指定)
-  locationRegion    String?
+  locationRegion String?
   // 利用可能な時間帯 (例: ["MORNING", "EVENING", "NIGHT"])
-  availableSlots    String[]
-  language          String   @default("ja")
-  costTolerance     CostTolerance @default(FREE)
-  skillTags         String[]
-  acceptMatch       Boolean  @default(true)
-  updatedAt         DateTime @updatedAt
+  availableSlots String[]
+  language       String        @default("ja")
+  costTolerance  CostTolerance @default(FREE)
+  skillTags      String[]
+  acceptMatch    Boolean       @default(true)
+  updatedAt      DateTime      @updatedAt
+
+  @@schema("problemmach")
 }
 
 enum CostTolerance {
   FREE
-  LOW       // ~ 1000 円
-  MEDIUM    // ~ 5000 円
-  HIGH      // 5000円以上もOK
+  LOW // ~ 1000 円
+  MEDIUM // ~ 5000 円
+  HIGH // 5000円以上もOK
+
+  @@schema("problemmach")
 }
 
 // Phase 2: マッチ
@@ -349,8 +393,8 @@ model Match {
   postBId            String
   postB              Post        @relation("MatchPostB", fields: [postBId], references: [id], onDelete: Cascade)
   matchType          MatchType
-  compatibilityScore Int         // 0-100
-  realnessScore      Int         // 0-100
+  compatibilityScore Int // 0-100
+  realnessScore      Int // 0-100
   status             MatchStatus @default(SUGGESTED)
   acceptedByA        Boolean     @default(false)
   acceptedByB        Boolean     @default(false)
@@ -363,11 +407,14 @@ model Match {
   @@index([postAId])
   @@index([postBId])
   @@index([status])
+  @@schema("problemmach")
 }
 
 enum MatchType {
-  MIRROR        // 同類型ミラー
-  EXPERIENCED   // 経験者マッチ (片方が経験済み)
+  MIRROR // 同類型ミラー
+  EXPERIENCED // 経験者マッチ (片方が経験済み)
+
+  @@schema("problemmach")
 }
 
 enum MatchStatus {
@@ -377,6 +424,8 @@ enum MatchStatus {
   MUTUAL
   DECLINED
   EXPIRED
+
+  @@schema("problemmach")
 }
 
 // Phase 3: チャット
@@ -388,43 +437,49 @@ model ChatRoom {
   createdAt DateTime      @default(now())
   closedAt  DateTime?
   messages  ChatMessage[]
+
+  @@schema("problemmach")
 }
 
 enum ChatStatus {
   ACTIVE
   CLOSED
   REPORTED
+
+  @@schema("problemmach")
 }
 
 model ChatMessage {
-  id              String   @id @default(cuid())
-  chatRoomId      String
-  chatRoom        ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  senderUserId    String
-  content         String   @db.Text
-  moderationFlag  String?  // null | URL_DETECTED | MONEY_REQUEST | SELF_HARM | ...
-  isDeleted       Boolean  @default(false)
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  chatRoomId     String
+  chatRoom       ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  senderUserId   String
+  content        String   @db.Text
+  moderationFlag String? // null | URL_DETECTED | MONEY_REQUEST | SELF_HARM | ...
+  isDeleted      Boolean  @default(false)
+  createdAt      DateTime @default(now())
 
   @@index([chatRoomId])
   @@index([senderUserId])
+  @@schema("problemmach")
 }
 
 // 通報
 model Report {
-  id              String       @id @default(cuid())
-  reporterUserId  String
-  targetType      ReportTarget
-  targetId        String
-  reason          ReportReason
-  detail          String?      @db.Text
-  status          ReportStatus @default(PENDING)
-  reviewedBy      String?
-  reviewedAt      DateTime?
-  createdAt       DateTime     @default(now())
+  id             String       @id @default(cuid())
+  reporterUserId String
+  targetType     ReportTarget
+  targetId       String
+  reason         ReportReason
+  detail         String?      @db.Text
+  status         ReportStatus @default(PENDING)
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  createdAt      DateTime     @default(now())
 
   @@index([status])
   @@index([targetType, targetId])
+  @@schema("problemmach")
 }
 
 enum ReportTarget {
@@ -432,6 +487,8 @@ enum ReportTarget {
   MESSAGE
   USER
   MATCH
+
+  @@schema("problemmach")
 }
 
 enum ReportReason {
@@ -441,6 +498,8 @@ enum ReportReason {
   EXTERNAL_SOLICITATION
   SELF_HARM_CONCERN
   OTHER
+
+  @@schema("problemmach")
 }
 
 enum ReportStatus {
@@ -448,6 +507,8 @@ enum ReportStatus {
   REVIEWED
   ACTIONED
   DISMISSED
+
+  @@schema("problemmach")
 }
 
 // 自動検知ログ (運営側のみ)
@@ -460,4 +521,5 @@ model ModerationEvent {
 
   @@index([userId])
   @@index([eventType])
+  @@schema("problemmach")
 }
